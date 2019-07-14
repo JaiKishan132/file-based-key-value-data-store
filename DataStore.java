@@ -57,6 +57,13 @@ public class DataStore {
 		   		System.out.println("Not text file");
 	   			return;
 	   		}
+	   		File file = new File(path);
+	   		long fileSizeInBytes = file.length();
+	   		long fileSizeInMB = fileSizeInBytes / (1024*1024);
+	   		if(fileSizeInMB>1024){
+	   			System.out.println("file size greater than 1GB");
+	   			return;
+	   		}
 	   		System.out.println("enter time to live in seconds, enter 0 if no ttl");
 	   		long ttl = sc.nextLong();
 	   		myMap.put(key, osPath);
