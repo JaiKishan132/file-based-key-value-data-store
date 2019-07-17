@@ -12,6 +12,10 @@ public class TtlHashMap<K, V> implements Map<K, V> {
     private final HashMap<K, Long> timestamps = new HashMap<>();
     private final HashMap<K, Long> ttl = new HashMap<>();
 
+    public TtlHashMap(){
+        CleanerTrhead ct = new CleanerTrhead();
+        ct.start();
+    }
     public void putTtl(K key, TimeUnit ttlUnit, long ttlValue) {
         ttl.put(key, ttlUnit.toNanos(ttlValue));
         clearExpired();
@@ -112,4 +116,22 @@ public class TtlHashMap<K, V> implements Map<K, V> {
         }
     }
 
+    class CleanerTrhead extends Thread{
+
+     @Override
+    public void run() {
+        while (true) {
+            cleanMap();
+            try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    private void cleanMap() {
+        clearExpired();
+    }
 }
