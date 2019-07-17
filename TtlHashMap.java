@@ -10,41 +10,22 @@ public class TtlHashMap<K, V> implements Map<K, V> {
 
     private final HashMap<K, V> store = new HashMap<>();
     private final HashMap<K, Long> timestamps = new HashMap<>();
-    private final HashMap<K, Long> ttl = new HashMap<>();
+    private final HashMap<K, CleanerTrhead> ttl = new HashMap<>();
 
-    public TtlHashMap(){
-        CleanerTrhead ct = new CleanerTrhead();
-        ct.start();
-    }
     public void putTtl(K key, TimeUnit ttlUnit, long ttlValue) {
-        ttl.put(key, ttlUnit.toNanos(ttlValue));
-        clearExpired();
+        CleanerTrhead ct = new CleanerTrhead(key,ttlUnit,ttlValue);
+        ct.start();
+        ttl.put(key, ct);
     }
 
     @Override
     public V get(Object key) {
         V value = this.store.get(key);
-
-        if (value != null && expired(key, value)) {
-            ttl.remove(key);
-            store.remove(key);
-            timestamps.remove(key);
-            return null;
-        } else {
-            return value;
-        }
-    }
-
-    private boolean expired(Object key, V value) {
-        if(ttl.get(key)==0){
-            return false;
-        }
-        return (System.nanoTime() - timestamps.get(key)) > ttl.get(key);
+        return value;
     }
 
     @Override
     public V put(K key, V value) {
-        clearExpired();
         timestamps.put(key, System.nanoTime());
         return store.put(key, value);
     }
@@ -61,19 +42,18 @@ public class TtlHashMap<K, V> implements Map<K, V> {
 
     @Override
     public boolean containsKey(Object key) {
-        clearExpired();
         return store.containsKey(key);
     }
 
     @Override
     public boolean containsValue(Object value) {
-        clearExpired();
         return store.containsValue(value);
     }
 
     @Override
     public V remove(Object key) {
         timestamps.remove(key);
+        ttl.get(key).terminate();
         ttl.remove(key);
         return store.remove(key);
     }
@@ -87,6 +67,9 @@ public class TtlHashMap<K, V> implements Map<K, V> {
 
     @Override
     public void clear() {
+        for(K key : ttl.keySet()){
+            ttl.get(key).terminate();
+        }
         ttl.clear();
         timestamps.clear();
         store.clear();
@@ -94,44 +77,59 @@ public class TtlHashMap<K, V> implements Map<K, V> {
 
     @Override
     public Set<K> keySet() {
-        clearExpired();
         return unmodifiableSet(store.keySet());
     }
 
     @Override
     public Collection<V> values() {
-        clearExpired();
         return unmodifiableCollection(store.values());
     }
 
     @Override
     public Set<java.util.Map.Entry<K, V>> entrySet() {
-        clearExpired();
         return unmodifiableSet(store.entrySet());
-    }
-
-    private void clearExpired() {
-        for (K k : store.keySet()) {
-            this.get(k);
-        }
     }
 
     class CleanerTrhead extends Thread{
 
-     @Override
+    private boolean exit = false;
+    private Object key;
+    private TimeUnit ttlUnit;
+    private long ttlValue;
+
+    public CleanerTrhead(Object k, TimeUnit unit, long value){
+        key=k;
+        ttlUnit=unit;
+        ttlValue=ttlUnit.toNanos(value);
+    }
+
+    @Override
     public void run() {
-        while (true) {
-            cleanMap();
+        while (!exit) {
+            Object value = store.get(key);
+
+            if (value != null && expired(key)){
+                remove(key);
+                exit = true;
+            }
             try {
                     Thread.sleep(5000);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
             }
-        }
     }
 
-    private void cleanMap() {
-        clearExpired();
+    public boolean expired(Object key) {
+        if(ttlValue==0){
+            return false;
+        }
+        return (System.nanoTime() - timestamps.get(key)) > ttlValue;
+    }
+
+    public void terminate(){
+        exit = true;
+    }
+
     }
 }
